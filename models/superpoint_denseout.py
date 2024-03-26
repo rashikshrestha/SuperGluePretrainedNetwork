@@ -182,31 +182,36 @@ class SuperPoint(nn.Module):
         b, _, h, w = scores.shape
         scores = scores.permute(0, 2, 3, 1).reshape(b, h, w, 8, 8)
         scores = scores.permute(0, 1, 3, 2, 4).reshape(b, h*8, w*8)
-        scores = simple_nms(scores, self.config['nms_radius'])
+        # scores = simple_nms(scores, self.config['nms_radius'])
+        scores = scores*1000
+        scores = torch.clamp(scores, min=0.0, max=1.0)
 
         # Extract keypoints
-        keypoints = [
-            torch.nonzero(s > self.config['keypoint_threshold'])
-            for s in scores]
-        scores = [s[tuple(k.t())] for s, k in zip(scores, keypoints)]
+        # keypoints = [
+        #     torch.nonzero(s > self.config['keypoint_threshold'])
+        #     for s in scores]
+        # scores = [s[tuple(k.t())] for s, k in zip(scores, keypoints)]
 
         # Discard keypoints near the image borders
-        keypoints, scores = list(zip(*[
-            remove_borders(k, s, self.config['remove_borders'], h*8, w*8)
-            for k, s in zip(keypoints, scores)]))
+        # keypoints, scores = list(zip(*[
+        #     remove_borders(k, s, self.config['remove_borders'], h*8, w*8)
+        #     for k, s in zip(keypoints, scores)]))
 
         # Keep the k keypoints with highest score
-        if self.config['max_keypoints'] >= 0:
-            keypoints, scores = list(zip(*[
-                top_k_keypoints(k, s, self.config['max_keypoints'])
-                for k, s in zip(keypoints, scores)]))
+        # if self.config['max_keypoints'] >= 0:
+        #     keypoints, scores = list(zip(*[
+        #         top_k_keypoints(k, s, self.config['max_keypoints'])
+        #         for k, s in zip(keypoints, scores)]))
 
         # Convert (h, w) to (x, y)
-        keypoints = [torch.flip(k, [1]).float() for k in keypoints]
+        # keypoints = [torch.flip(k, [1]).float() for k in keypoints]
 
         # Compute the dense descriptors
         cDa = self.relu(self.convDa(x))
         descriptors = self.convDb(cDa)
         descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1)
 
-        return descriptors
+        return {
+            'scores': scores,
+            'descriptors': descriptors
+        }
